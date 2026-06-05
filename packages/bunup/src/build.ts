@@ -141,7 +141,7 @@ export async function build(
 				outdir: absoluteOutDir,
 			});
 
-			let shouldManuallyWriteOutputs = false;
+			let requiresManualWriting = false;
 			// Bun applies entry naming to CSS assets, which can either rename CSS to JS extensions
 			// or fail with this diagnostic when CSS is emitted beside a JS entry.
 			const shouldFallbackToManualOutput =
@@ -162,7 +162,7 @@ export async function build(
 						chunk: chunkNaming,
 					},
 				});
-				shouldManuallyWriteOutputs = true;
+				requiresManualWriting = true;
 			}
 
 			for (const log of result.logs) {
@@ -197,9 +197,9 @@ export async function build(
 					continue;
 				}
 
-				const content = shouldManuallyWriteOutputs ? await file.text() : undefined;
+				const content = requiresManualWriting ? await file.text() : undefined;
 
-				const pathRelativeToOutdir = shouldManuallyWriteOutputs
+				const pathRelativeToOutdir = requiresManualWriting
 					? cleanPath(
 							isJavascriptFile(file.path) && file.kind === "entry-point"
 								? replaceExtension(file.path, getDefaultJsOutputExtension(fmt, packageType))
