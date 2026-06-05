@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { cleanProjectDir, createProject, runBuild, validateBuildFiles } from "../utils";
 
 describe("Build Process", () => {
@@ -94,6 +96,54 @@ export function Counter() {
 		const clientDirectivePos = outputFile.content.indexOf('"use client";');
 		const importPos = outputFile.content.indexOf("import");
 		expect(clientDirectivePos).toBeLessThan(importPos);
+	});
+
+	it("keeps shared imports in barrel re-export entry outputs", async () => {
+		createProject({
+			"package.json": JSON.stringify({
+				name: "test-package",
+				version: "1.0.0",
+				type: "module",
+			}),
+			"src/exports/client.ts": `
+				"use client";
+				export { GenerateButton } from '../components/GenerateButton';
+				export { MetaPreview } from '../components/MetaPreview';
+				export { DescriptionFieldComponent } from '../components/DescriptionFieldComponent';
+				export { TitleFieldComponent } from '../components/TitleFieldComponent';
+			`,
+			"src/exports/fields-components.ts": `
+				export { MetaPreview } from '../components/MetaPreview';
+				export { DescriptionFieldComponent } from '../components/DescriptionFieldComponent';
+				export { TitleFieldComponent } from '../components/TitleFieldComponent';
+			`,
+			"src/components/GenerateButton.ts": "export const GenerateButton = 'generate';",
+			"src/components/MetaPreview.ts": "export const MetaPreview = 'meta';",
+			"src/components/DescriptionFieldComponent.ts":
+				"export const DescriptionFieldComponent = 'description';",
+			"src/components/TitleFieldComponent.ts": "export const TitleFieldComponent = 'title';",
+		});
+
+		const result = await runBuild({
+			entry: ["src/exports/client.ts", "src/exports/fields-components.ts"],
+			format: "esm",
+		});
+
+		expect(result.success).toBe(true);
+
+		const clientFile = result.files.find((file) => file.path.endsWith("/client.js"));
+		expect(clientFile?.content).toContain("from \"./shared/");
+		expect(clientFile?.content).toContain("export {");
+
+		const clientModule = await import(
+			pathToFileURL(path.join(process.cwd(), "packages/bunup/test/.project/.output/client.js")).href
+		);
+		expect(clientModule).toMatchObject({
+			GenerateButton: "generate",
+			MetaPreview: "meta",
+			DescriptionFieldComponent: "description",
+			TitleFieldComponent: "title",
+		});
 	});
 
 	it("respects minify options", async () => {

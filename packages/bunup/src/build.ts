@@ -99,9 +99,14 @@ export async function build(
 		const resolvedSourcemap = getResolvedSourcemap(options.sourcemap);
 		const resolvedEnv = getResolvedEnv(options.env);
 		const chunkNaming = getDefaultChunkNaming(options.name);
+		const absoluteOutDir = path.resolve(rootDir, options.outDir);
 
 		const buildPromises = ensureArray(options.format).map(async (fmt) => {
-			const result = await Bun.build({
+			const entryNaming = options.compile
+				? getCompileNaming(entryArray, options.compile, fmt)
+				: `[dir]/[name]${getDefaultJsOutputExtension(fmt, packageType)}`;
+
+			let result = await Bun.build({
 				entrypoints: absoluteEntrypoints,
 				format: fmt,
 				splitting: getResolvedSplitting(options.splitting, fmt),
@@ -113,7 +118,7 @@ export async function build(
 				drop: options.drop,
 				naming: {
 					chunk: chunkNaming,
-					entry: options.compile ? getCompileNaming(entryArray, options.compile, fmt) : undefined,
+					entry: entryNaming,
 				},
 				conditions: options.conditions,
 				banner: options.banner,
@@ -125,9 +130,7 @@ export async function build(
 				emitDCEAnnotations: options.emitDCEAnnotations,
 				jsx: options.jsx,
 				compile: options.compile,
-				// for compiled executables, let Bun handle writing to the outdir unlike we handle writing for js output files manually
-				// for those who don't know, if we provide outdir to Bun.build, Bun will handle writing files to output. if we don't provide it, we can handle it manually using the output result from Bun.build
-				outdir: options.compile ? path.resolve(rootDir, options.outDir) : undefined,
+				outdir: absoluteOutDir,
 				throw: false,
 				plugins: bunPlugins,
 				tsconfig: options.preferredTsconfig
@@ -135,6 +138,50 @@ export async function build(
 					: undefined,
 				metafile: true,
 			});
+
+			let shouldWriteOutputs = false;
+			const shouldFallbackToManualOutput =
+				!options.compile &&
+				(result.outputs.some((file) => file.type.startsWith("text/css")) ||
+					result.logs.some(
+						(log) =>
+							log.level === "error" &&
+							log.message.includes("Multiple files share the same output path"),
+					));
+
+			if (shouldFallbackToManualOutput) {
+				result = await Bun.build({
+					entrypoints: absoluteEntrypoints,
+					format: fmt,
+					splitting: getResolvedSplitting(options.splitting, fmt),
+					define: resolvedDefine,
+					minify: resolvedMinify,
+					target: resolvedTarget,
+					sourcemap: resolvedSourcemap,
+					loader: options.loader,
+					drop: options.drop,
+					naming: {
+						chunk: chunkNaming,
+					},
+					conditions: options.conditions,
+					banner: options.banner,
+					footer: options.footer,
+					publicPath: options.publicPath,
+					root: options.sourceBase ? path.resolve(rootDir, options.sourceBase) : undefined,
+					env: resolvedEnv,
+					ignoreDCEAnnotations: options.ignoreDCEAnnotations,
+					emitDCEAnnotations: options.emitDCEAnnotations,
+					jsx: options.jsx,
+					compile: options.compile,
+					throw: false,
+					plugins: bunPlugins,
+					tsconfig: options.preferredTsconfig
+						? path.resolve(rootDir, options.preferredTsconfig)
+						: undefined,
+					metafile: true,
+				});
+				shouldWriteOutputs = true;
+			}
 
 			for (const log of result.logs) {
 				if (log.level === "error") {
@@ -146,15 +193,11 @@ export async function build(
 			}
 
 			for (const file of result.outputs) {
-				// for executables, we don't need to handle the output file writing manually
-				// for compile, we provided the outdir in the Bun.build, so Bun will handle the writing to output.
-				// this manual handling is only for js output files.
 				if (options.compile) {
 					const fullPath = file.path;
 
 					const pathRelativeToRootDir = path.relative(rootDir, fullPath);
 
-					const absoluteOutDir = path.resolve(rootDir, options.outDir);
 					const pathRelativeToOutdir = path.relative(absoluteOutDir, fullPath);
 
 					buildOutputFiles.push({
@@ -172,19 +215,22 @@ export async function build(
 					continue;
 				}
 
-				const content = await file.text();
+				const content = shouldWriteOutputs ? await file.text() : undefined;
 
-				const pathRelativeToOutdir = cleanPath(
-					isJavascriptFile(file.path) && file.kind === "entry-point"
-						? replaceExtension(file.path, getDefaultJsOutputExtension(fmt, packageType))
-						: file.path,
-				);
-
-				const pathRelativeToRootDir = path.join(options.outDir, pathRelativeToOutdir);
+				const pathRelativeToOutdir = shouldWriteOutputs
+					? cleanPath(
+							isJavascriptFile(file.path) && file.kind === "entry-point"
+								? replaceExtension(file.path, getDefaultJsOutputExtension(fmt, packageType))
+								: file.path,
+						)
+					: cleanPath(path.relative(absoluteOutDir, file.path));
+				const pathRelativeToRootDir = cleanPath(path.join(options.outDir, pathRelativeToOutdir));
 
 				const fullPath = path.resolve(rootDir, pathRelativeToRootDir);
 
-				await Bun.write(fullPath, content);
+				if (content !== undefined) {
+					await Bun.write(fullPath, content);
+				}
 
 				if (!buildOutputFiles.some((f) => f.fullPath === fullPath)) {
 					buildOutputFiles.push({

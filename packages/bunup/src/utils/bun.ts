@@ -10,6 +10,30 @@ export function getOriginalEntrypointFromOutputPath(
 	outputPath: string,
 	rootDir: string,
 ): string {
-	const entryPoint = metafile?.outputs[outputPath]?.entryPoint as string;
-	return path.relative(rootDir, entryPoint);
+	const output = metafile?.outputs[outputPath] ?? findOutputByPath(metafile, outputPath);
+	const entryPoint = output?.entryPoint as string | undefined;
+	if (!entryPoint) return "";
+
+	const absoluteEntryPoint = path.isAbsolute(entryPoint) ? entryPoint : path.resolve(entryPoint);
+	return path.relative(rootDir, absoluteEntryPoint);
+}
+
+function findOutputByPath(
+	metafile: BuildMetafile | undefined,
+	outputPath: string,
+): BuildMetafile["outputs"][string] | undefined {
+	if (!metafile) return undefined;
+
+	const normalizedOutputPath = cleanPath(outputPath);
+
+	for (const [key, output] of Object.entries(metafile.outputs)) {
+		const normalizedKey = cleanPath(key).replace(/^\.(?:\/\.)?\//, "");
+		if (normalizedOutputPath.endsWith(normalizedKey)) {
+			return output;
+		}
+	}
+}
+
+function cleanPath(filePath: string): string {
+	return filePath.replace(/\\/g, "/");
 }
