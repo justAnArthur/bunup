@@ -27,6 +27,7 @@ function findOutputByPath(
 	const normalizedOutputPath = cleanPath(outputPath);
 
 	for (const [key, output] of Object.entries(metafile.outputs)) {
+		// Bun metafile keys can be emitted as "./file" or "././file" when outdir is set.
 		const normalizedKey = cleanPath(key).replace(/^\.(?:\/\.)?\//, "");
 		if (normalizedOutputPath.endsWith(normalizedKey)) {
 			return output;

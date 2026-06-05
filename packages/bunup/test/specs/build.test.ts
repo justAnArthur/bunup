@@ -104,7 +104,7 @@ export function Counter() {
 		expect(clientDirectivePos).toBeLessThan(importPos);
 	});
 
-	it("keeps shared imports in barrel re-export entry outputs", async () => {
+	it("generates valid shared imports for barrel re-export outputs", async () => {
 		createProject({
 			"package.json": JSON.stringify({
 				name: "test-package",
@@ -124,7 +124,7 @@ export function Counter() {
 				export { TitleFieldComponent } from '../components/TitleFieldComponent';
 			`,
 			"src/components/GenerateButton.ts": "export const GenerateButton = 'generate';",
-			"src/components/MetaPreview.ts": "export const MetaPreview = 'meta';",
+			"src/components/MetaPreview.ts": "export const MetaPreview = 'preview';",
 			"src/components/DescriptionFieldComponent.ts":
 				"export const DescriptionFieldComponent = 'description';",
 			"src/components/TitleFieldComponent.ts": "export const TitleFieldComponent = 'title';",
@@ -146,7 +146,7 @@ export function Counter() {
 		);
 		expect(clientModule).toMatchObject({
 			GenerateButton: "generate",
-			MetaPreview: "meta",
+			MetaPreview: "preview",
 			DescriptionFieldComponent: "description",
 			TitleFieldComponent: "title",
 		});
