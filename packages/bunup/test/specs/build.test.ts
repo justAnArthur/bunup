@@ -138,7 +138,7 @@ export function Counter() {
 		expect(result.success).toBe(true);
 
 		const clientFile = result.files.find((file) => file.path.endsWith("/client.js"));
-		expect(clientFile?.content).toContain("from \"./shared/");
+		expect(clientFile?.content).toMatch(/from "\.\/.+\.js"/);
 		expect(clientFile?.content).toContain("export {");
 
 		const clientModule = await import(

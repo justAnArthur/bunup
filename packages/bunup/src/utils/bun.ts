@@ -26,7 +26,7 @@ function findOutputByPath(
 ): BuildMetafile["outputs"][string] | undefined {
 	if (!metafile) return undefined;
 
-	const normalizedOutputPath = cleanPath(outputPath);
+	const normalizedOutputPath = cleanPath(outputPath).replace(BUN_METAFILE_PATH_PREFIX_RE, "");
 
 	for (const [key, output] of Object.entries(metafile.outputs)) {
 		// Bun metafile keys can be emitted as "./file" or "././file" when outdir is set.
