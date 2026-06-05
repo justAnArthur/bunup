@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { cleanProjectDir, createProject, runBuild, validateBuildFiles } from "../utils";
+import {
+	PROJECT_DIR,
+	cleanProjectDir,
+	createProject,
+	runBuild,
+	validateBuildFiles,
+} from "../utils";
 
 describe("Build Process", () => {
 	beforeEach(() => {
@@ -136,7 +142,7 @@ export function Counter() {
 		expect(clientFile?.content).toContain("export {");
 
 		const clientModule = await import(
-			pathToFileURL(path.join(process.cwd(), "packages/bunup/test/.project/.output/client.js")).href
+			pathToFileURL(path.join(PROJECT_DIR, ".output/client.js")).href
 		);
 		expect(clientModule).toMatchObject({
 			GenerateButton: "generate",

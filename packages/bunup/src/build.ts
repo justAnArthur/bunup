@@ -100,6 +100,30 @@ export async function build(
 		const resolvedEnv = getResolvedEnv(options.env);
 		const chunkNaming = getDefaultChunkNaming(options.name);
 		const absoluteOutDir = path.resolve(rootDir, options.outDir);
+		const bunBuildOptions = {
+			entrypoints: absoluteEntrypoints,
+			splitting: undefined,
+			define: resolvedDefine,
+			minify: resolvedMinify,
+			target: resolvedTarget,
+			sourcemap: resolvedSourcemap,
+			loader: options.loader,
+			drop: options.drop,
+			conditions: options.conditions,
+			banner: options.banner,
+			footer: options.footer,
+			publicPath: options.publicPath,
+			root: options.sourceBase ? path.resolve(rootDir, options.sourceBase) : undefined,
+			env: resolvedEnv,
+			ignoreDCEAnnotations: options.ignoreDCEAnnotations,
+			emitDCEAnnotations: options.emitDCEAnnotations,
+			jsx: options.jsx,
+			compile: options.compile,
+			throw: false,
+			plugins: bunPlugins,
+			tsconfig: options.preferredTsconfig ? path.resolve(rootDir, options.preferredTsconfig) : undefined,
+			metafile: true,
+		};
 
 		const buildPromises = ensureArray(options.format).map(async (fmt) => {
 			const entryNaming = options.compile
@@ -107,39 +131,19 @@ export async function build(
 				: `[dir]/[name]${getDefaultJsOutputExtension(fmt, packageType)}`;
 
 			let result = await Bun.build({
-				entrypoints: absoluteEntrypoints,
+				...bunBuildOptions,
 				format: fmt,
 				splitting: getResolvedSplitting(options.splitting, fmt),
-				define: resolvedDefine,
-				minify: resolvedMinify,
-				target: resolvedTarget,
-				sourcemap: resolvedSourcemap,
-				loader: options.loader,
-				drop: options.drop,
 				naming: {
 					chunk: chunkNaming,
 					entry: entryNaming,
 				},
-				conditions: options.conditions,
-				banner: options.banner,
-				footer: options.footer,
-				publicPath: options.publicPath,
-				root: options.sourceBase ? path.resolve(rootDir, options.sourceBase) : undefined,
-				env: resolvedEnv,
-				ignoreDCEAnnotations: options.ignoreDCEAnnotations,
-				emitDCEAnnotations: options.emitDCEAnnotations,
-				jsx: options.jsx,
-				compile: options.compile,
 				outdir: absoluteOutDir,
-				throw: false,
-				plugins: bunPlugins,
-				tsconfig: options.preferredTsconfig
-					? path.resolve(rootDir, options.preferredTsconfig)
-					: undefined,
-				metafile: true,
 			});
 
 			let shouldWriteOutputs = false;
+			// Bun applies entry naming to CSS assets, which can either rename CSS to JS extensions
+			// or fail with this diagnostic when CSS is emitted beside a JS entry.
 			const shouldFallbackToManualOutput =
 				!options.compile &&
 				(result.outputs.some((file) => file.type.startsWith("text/css")) ||
@@ -151,34 +155,12 @@ export async function build(
 
 			if (shouldFallbackToManualOutput) {
 				result = await Bun.build({
-					entrypoints: absoluteEntrypoints,
+					...bunBuildOptions,
 					format: fmt,
 					splitting: getResolvedSplitting(options.splitting, fmt),
-					define: resolvedDefine,
-					minify: resolvedMinify,
-					target: resolvedTarget,
-					sourcemap: resolvedSourcemap,
-					loader: options.loader,
-					drop: options.drop,
 					naming: {
 						chunk: chunkNaming,
 					},
-					conditions: options.conditions,
-					banner: options.banner,
-					footer: options.footer,
-					publicPath: options.publicPath,
-					root: options.sourceBase ? path.resolve(rootDir, options.sourceBase) : undefined,
-					env: resolvedEnv,
-					ignoreDCEAnnotations: options.ignoreDCEAnnotations,
-					emitDCEAnnotations: options.emitDCEAnnotations,
-					jsx: options.jsx,
-					compile: options.compile,
-					throw: false,
-					plugins: bunPlugins,
-					tsconfig: options.preferredTsconfig
-						? path.resolve(rootDir, options.preferredTsconfig)
-						: undefined,
-					metafile: true,
 				});
 				shouldWriteOutputs = true;
 			}
